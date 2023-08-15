@@ -1,0 +1,22 @@
+# https://www.jetbrains.com/help/idea/http-client-in-product-code-editor.html
+
+#############################################
+
+### Title
+
+GET {{protocol}}{{host}}:{{port}}/v1/url
+token: {{ token }}
+Accept: application/json
+Content-Type: application/json
+
+### Title
+
+PUT {{protocol}}{{host}}:{{port}}/v1/url
+token: {{ token }}
+Accept: application/json
+Content-Type: application/json
+
+{
+"one": "one",
+"two": "two"
+}

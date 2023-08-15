@@ -1,0 +1,6 @@
+.idea
+.env
+bin/
+**/.DS_Store
+coverage.txt
+requests/http-client.env.json
