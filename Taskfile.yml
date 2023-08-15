@@ -1,0 +1,115 @@
+# https://taskfile.dev/#/installation
+version: '3'
+
+silent: true
+
+vars:
+  REGISTRY: registry.address
+  PROJECT: project.name
+  GO_FILES:
+    sh: find . -type f -name '*.go' -not -path "./vendor/*" -not -path "*.gen.go" | tr "\n" " "
+  GO_MODULE: github.com/p12s/go-service-template
+  GOLANGCI_LINT_VERSION: v1.53.3
+  GOLANGCI_LINT_CACHE:
+    sh: echo "$HOME/Library/Caches" # check golangci-lint cache status
+  DEV_TOOLS: |
+    github.com/daixiang0/gci@v0.10.1
+    mvdan.cc/gofumpt@v0.4.0
+    github.com/golang/mock/mockgen@v1.6.0
+    github.com/kazhuravlev/options-gen/cmd/options-gen@v0.28.4
+
+tasks:
+
+  default:
+    cmds:
+      - task: tidy
+      - task: fmt
+      - task: lint
+      - task: tests:unit
+
+  tidy:
+    - echo "- Tidy"
+    - GO111MODULE=on go mod tidy
+
+  fmt:
+    - echo "- Format"
+    - gofumpt -w {{.GO_FILES}}
+    - gci write -s standard -s default -s "Prefix({{.GO_MODULE}})" {{.GO_FILES}} 2> /dev/null
+
+  tests:unit:
+    cmds:
+      - echo "Unit..."
+      - go test -coverprofile=coverage.txt -covermode=atomic ./...
+
+  tests:unit-v:
+    cmds:
+      - echo "Unit -v ..."
+      - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  cover:
+    cmds:
+      - echo "Cover..."
+      - go tool cover -func=coverage.txt
+
+  cover-h:
+    cmds:
+      - echo "Cover html..."
+      - go tool cover -html=coverage.txt
+
+  lint:
+    cmds:
+      - echo "- Lint"
+      - mkdir -p {{.GOLANGCI_LINT_CACHE}}
+      - golangci-lint run -v --timeout=7m --skip-dirs migrate-psql ./...
+
+  lint:cmd:
+    cmds:
+      - |
+        docker run --rm \
+          -v "$(pwd):/app" -w /app \
+          -v "{{.GOLANGCI_LINT_CACHE}}:/root/.cache" \
+          golangci/golangci-lint:{{.GOLANGCI_LINT_VERSION}} \
+          golangci-lint {{.CLI_ARGS}}
+
+  dev-tools:install:
+    cmds:
+      - echo "- Install dev tools"
+      - |
+        {{ range $i, $tool := .DEV_TOOLS | trim | splitLines -}}
+          go install {{ $tool }}
+        {{ end }}
+
+  build:
+    cmds:
+      - echo "Build..."
+      - go build -race cmd/main.go
+
+  mock:
+    cmds:
+      - echo "Mock..."
+      - go generate ./...
+
+  swag:
+    cmds:
+      - echo "Swag..."
+      - swag init -g cmd/main.go
+
+  dev-build:
+    cmds:
+      - docker --log-level=debug build --pull --file=./Dockerfile --tag={{.REGISTRY}}/{{.PROJECT}}:{{.SERVICE}}:latest .
+
+  docker-compose-up:
+    cmds:
+      - REGISTRY={{.REGISTRY}} PROJECT={{.PROJECT}} IMAGE_TAG=latest docker-compose -f ./docker-compose.yml up
+
+  docker-security:
+    cmds:
+      - docker --log-level=debug build --pull --file=./Dockerfile --tag={{.REGISTRY}}/{{.PROJECT}}:latest .
+      - echo "quickview..."
+      - docker scout quickview
+      - echo "cves..."
+      - docker scout cves {{.REGISTRY}}/{{.PROJECT}}:latest
+      - echo "recommendations..."
+      - docker scout recommendations {{.REGISTRY}}/{{.PROJECT}}:latest
+      - echo "hadolint..."
+      - docker run --rm -i hadolint/hadolint < Dockerfile
