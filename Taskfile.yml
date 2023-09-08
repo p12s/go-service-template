@@ -113,3 +113,5 @@ tasks:
       - docker scout recommendations {{.REGISTRY}}/{{.PROJECT}}:latest
       - echo "hadolint..."
       - docker run --rm -i hadolint/hadolint < Dockerfile
+
+
